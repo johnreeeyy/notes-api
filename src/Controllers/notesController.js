@@ -1,9 +1,11 @@
 import Note from "../Models/Note.js";
 import mongoose from "mongoose";
 
-export async function getNotes(_, res) {
+export async function getNotes(req, res) {
   try {
-    const notes = await Note.find().sort({ createdAt: -1 });
+    const notes = await Note.find({ user: req.user._id }).sort({
+      createdAt: -1,
+    });
     res.status(200).json(notes);
   } catch (error) {
     console.error("Error in getNotes Controller", error);
@@ -21,7 +23,7 @@ export async function getNoteByID(req, res) {
     }
 
     // fetch note by id
-    const note = await Note.findById(id);
+    const note = await Note.findOne({ _id: id, user: req.user._id });
     if (!note) {
       return res.status(404).json({ message: "Note not found" });
     }
@@ -35,7 +37,6 @@ export async function getNoteByID(req, res) {
 export async function createNote(req, res) {
   try {
     const { title, content } = req.body;
-    const note = new Note({ title, content });
 
     // check if title and content is filled
     if (!title || !content) {
@@ -44,6 +45,7 @@ export async function createNote(req, res) {
         .json({ message: "Title and content are required" });
     }
 
+    const note = new Note({ title, content, user: req.user._id });
     const createdNote = await note.save();
     res.status(201).json(createdNote);
   } catch (error) {
@@ -62,8 +64,14 @@ export async function updateNote(req, res) {
     }
 
     const { title, content } = req.body;
-    const updatedNote = await Note.findByIdAndUpdate(
-      id,
+
+    // prevent empty updates
+    if (!title && !content) {
+      return res.status(400).json({ message: "Nothing to update" });
+    }
+
+    const updatedNote = await Note.findOneAndUpdate(
+      { _id: id, user: req.user._id },
       { title, content },
       { new: true },
     );
@@ -85,7 +93,10 @@ export async function deleteNote(req, res) {
     if (!mongoose.isValidObjectId(id)) {
       return res.status(400).json({ message: "Invalid Note ID" });
     }
-    const deletedNote = await Note.findByIdAndDelete(id);
+    const deletedNote = await Note.findOneAndDelete({
+      _id: id,
+      user: req.user._id,
+    });
     if (!deletedNote) {
       return res.status(404).json({ message: "Note not found" });
     }
